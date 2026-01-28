@@ -74,5 +74,15 @@ static bool parse_args(int argc, char ** argv, Args & out) {
 
 
 int main(int argc, char ** argv){
+    Args args;
+    if (!parse_args(argc, argv, args)) {
+        print_usage(argv[0]);
+        return 1;
+    }
+    
+    if (args.prompt.empty()) {
+        std::cerr << "Empty prompt. Provide -p or stdin.\n";
+        return 1;
+    }
 
 }
