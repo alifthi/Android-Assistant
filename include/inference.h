@@ -1,4 +1,5 @@
 #include "llama.h"
+#include "states.h"
 #include <string>
 
 // Forwarding types
@@ -22,3 +23,30 @@ typedef struct
 
 // load llama.cpp backed
 void load_backend();
+
+// function to load model
+int load_model(char* path, llama_inference* inference);
+
+// Get vocab
+int get_vocab(llama_inference* inference);
+
+// Allocate memory to prompt
+int allocate_prompt(llama_inference* inference, state_type* state);
+
+// Create a llama context
+int create_ctx(llama_inference* inference);
+
+// Check if context needs recreation
+int needs_ctx_recreation(llama_inference* inference);
+
+// Set sampler
+int set_sampler(llama_inference* inference);
+
+// Run inference
+int run_inference(llama_inference* inference, state_type* state);
+
+// Unallocate memory 
+int free_llama_inference(llama_inference* inference);
+
+// silenses ggml logs
+void silent_log_callback(enum ggml_log_level level, const char * text, void * user_data);
