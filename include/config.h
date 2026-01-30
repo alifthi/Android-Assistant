@@ -1,2 +1,3 @@
 
 #define MAX_ASSISTANT_RESPONSE 8192
+#define N_GPU_LAYERS 11
