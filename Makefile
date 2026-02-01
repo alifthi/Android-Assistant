@@ -1,8 +1,6 @@
 APP_NAME ?= llama_cli
-SRC := native/llama_cli.cpp
 
 BUILD_DIR := build
-OBJ := $(BUILD_DIR)/llama_cli.o
 OUT := $(BUILD_DIR)/$(APP_NAME)
 LIBCXX_SHARED_OUT := $(BUILD_DIR)/libc++_shared.so
 
@@ -42,11 +40,53 @@ else
 $(error Unsupported ANDROID_ABI: $(ANDROID_ABI))
 endif
 
+CC := $(NDK_TOOLCHAIN)/bin/$(TARGET_TRIPLE)$(ANDROID_API)-clang
 CXX := $(NDK_TOOLCHAIN)/bin/$(TARGET_TRIPLE)$(ANDROID_API)-clang++
 
-INCLUDES := -Iinclude
-CXXFLAGS := -O2 -g -fPIE -fPIC -DANDROID -std=c++17 $(INCLUDES)
-LDFLAGS := -pie
+GGML_CPU_ARCH_CPP :=
+GGML_CPU_ARCH_C :=
+ifeq ($(ANDROID_ABI),arm64-v8a)
+  GGML_CPU_ARCH_CPP += $(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/arch/arm/*.cpp)
+  GGML_CPU_ARCH_C += $(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/arch/arm/*.c)
+else ifeq ($(ANDROID_ABI),armeabi-v7a)
+  GGML_CPU_ARCH_CPP += $(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/arch/arm/*.cpp)
+  GGML_CPU_ARCH_C += $(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/arch/arm/*.c)
+else ifeq ($(ANDROID_ABI),x86_64)
+  GGML_CPU_ARCH_CPP += $(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/arch/x86/*.cpp)
+  GGML_CPU_ARCH_C += $(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/arch/x86/*.c)
+else ifeq ($(ANDROID_ABI),x86)
+  GGML_CPU_ARCH_CPP += $(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/arch/x86/*.cpp)
+  GGML_CPU_ARCH_C += $(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/arch/x86/*.c)
+endif
+
+SRC_CPP := \
+	native/llama_cli.cpp \
+	native/inferece.cpp \
+	$(wildcard third_party/llama.cpp/src/*.cpp) \
+	$(wildcard third_party/llama.cpp/src/models/*.cpp) \
+	$(wildcard third_party/llama.cpp/ggml/src/*.cpp) \
+	$(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/*.cpp) \
+	$(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/amx/*.cpp) \
+	$(GGML_CPU_ARCH_CPP)
+
+SRC_C := \
+	$(wildcard third_party/llama.cpp/ggml/src/*.c) \
+	$(wildcard third_party/llama.cpp/ggml/src/ggml-cpu/*.c) \
+	$(GGML_CPU_ARCH_C)
+
+SRC_CPP := $(sort $(SRC_CPP))
+SRC_C := $(sort $(SRC_C))
+
+OBJ_CPP := $(patsubst %.cpp,$(BUILD_DIR)/%.cpp.o,$(SRC_CPP))
+OBJ_C := $(patsubst %.c,$(BUILD_DIR)/%.c.o,$(SRC_C))
+OBJ := $(OBJ_CPP) $(OBJ_C)
+
+DEFS := -DANDROID -DGGML_USE_CPU -DGGML_SCHED_MAX_COPIES=4 -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -DGGML_VERSION=\"0.9.5\" -DGGML_COMMIT=\"unknown\"
+INCLUDES := -Iinclude -Ithird_party/llama.cpp/include -Ithird_party/llama.cpp/ggml/include -Ithird_party/llama.cpp/ggml/src -Ithird_party/llama.cpp/ggml/src/ggml-cpu
+CPPFLAGS := $(DEFS) $(INCLUDES)
+CFLAGS := -O2 -g -fPIE -fPIC -std=c11 $(CPPFLAGS)
+CXXFLAGS := -O2 -g -fPIE -fPIC -std=c++17 $(CPPFLAGS)
+LDFLAGS := -pie -ldl -lm
 
 LIBCXX_SHARED_CANDIDATES := \
 	$(NDK_TOOLCHAIN)/sysroot/usr/lib/$(TARGET_TRIPLE)/libc++_shared.so \
@@ -64,8 +104,13 @@ all: $(OUT) deps
 $(BUILD_DIR):
 	mkdir -p $@
 
-$(OBJ): $(SRC) | $(BUILD_DIR)
+$(BUILD_DIR)/%.cpp.o: %.cpp | $(BUILD_DIR)
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.c.o: %.c | $(BUILD_DIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OUT): $(OBJ)
 	$(CXX) $(OBJ) $(LDFLAGS) -o $@
