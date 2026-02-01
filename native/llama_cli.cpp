@@ -1,6 +1,7 @@
 #include <iostream>
 #include <sstream>
-
+#include "inference.h"
+#include "config.h"
 
 struct Args {
     std::string model_path;
@@ -75,6 +76,15 @@ static bool parse_args(int argc, char ** argv, Args & out) {
 
 int main(int argc, char ** argv){
     Args args;
+    int res;
+
+    llama_inference inference;
+    state_type state;
+    char *user_prompt;
+
+    memset(&inference, 0, sizeof(llama_inference));
+    memset(&state, 0, sizeof(state_type));
+
     if (!parse_args(argc, argv, args)) {
         print_usage(argv[0]);
         return 1;
@@ -85,4 +95,8 @@ int main(int argc, char ** argv){
         return 1;
     }
 
+    load_backend();
+    
+    
+    res = load_model(MODEL_PATH, &inference);
 }

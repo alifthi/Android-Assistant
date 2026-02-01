@@ -8,7 +8,11 @@
     * loading ggml backend
 */
 void load_backend(){
+#if defined(__ANDROID__)
+    // Avoid scanning root directories on Android; CPU backend is built-in.
+#else
     ggml_backend_load_all();
+#endif
 }
 
 /*
@@ -28,7 +32,6 @@ void silent_log_callback(enum ggml_log_level level, const char * text, void * us
 */
 int load_model(char *path, llama_inference *inference){
     struct llama_model_params model_params = llama_model_default_params();
-    model_params.n_gpu_layers = N_GPU_LAYERS;
     llama_log_set(silent_log_callback, NULL);    
     inference->model = llama_model_load_from_file(path, model_params);
     if(inference->model == NULL){
