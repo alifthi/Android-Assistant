@@ -99,4 +99,11 @@ int main(int argc, char ** argv){
     
     
     res = load_model(MODEL_PATH, &inference);
+    if(res){
+        free(user_prompt);
+        free_llama_inference(&inference);
+        return 1;
+    }
+
+    return 0;
 }
