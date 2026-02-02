@@ -105,5 +105,12 @@ int main(int argc, char ** argv){
         return 1;
     }
 
+    res = get_vocab(&inference);
+    if(res){
+        free(user_prompt);
+        free_llama_inference(&inference);
+        return 1;
+    }
+
     return 0;
 }
