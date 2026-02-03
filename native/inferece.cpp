@@ -54,3 +54,19 @@ int get_vocab(llama_inference *inference){
     }
     return 0;
 }
+
+/*
+    * Initialization of llama contex
+    * @param inference: Inference object. 
+*/
+int create_ctx(llama_inference* inference){
+    struct llama_context_params ctx_params = llama_context_default_params();
+    ctx_params.no_perf = false;
+
+    inference->ctx = llama_init_from_model(inference->model, ctx_params);
+    if (inference->ctx == NULL){
+        fprintf(stderr, "[Error] Failed initialize contex\n");
+        return 1;
+    }
+    return 0;
+}
