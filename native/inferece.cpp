@@ -70,3 +70,16 @@ int create_ctx(llama_inference* inference){
     }
     return 0;
 }
+
+/*
+    * Set sampler
+    * @param inferenceL llama_inference object 
+*/
+int set_sampler(llama_inference* inference){
+    struct llama_sampler_chain_params chain_params = llama_sampler_chain_default_params();
+    chain_params.no_perf = false;
+
+    inference->smplr = llama_sampler_chain_init(chain_params);
+    llama_sampler_chain_add(inference->smplr, llama_sampler_init_greedy());
+    return 0;
+}

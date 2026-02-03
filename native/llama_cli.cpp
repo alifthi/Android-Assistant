@@ -119,5 +119,12 @@ int main(int argc, char ** argv){
         return 1;
     }
 
+    res = set_sampler(&inference);
+    if(res){
+        free(user_prompt);
+        free_llama_inference(&inference);
+        return 1;
+    }
+    
     return 0;
 }
