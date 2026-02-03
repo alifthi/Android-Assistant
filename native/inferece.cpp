@@ -1,7 +1,7 @@
 #include "inference.h"
 #include "llama.h"
 #include "states.h"
-#include <string>
+#include <string.h>
 #include <config.h>
 
 /*
@@ -81,5 +81,52 @@ int set_sampler(llama_inference* inference){
 
     inference->smplr = llama_sampler_chain_init(chain_params);
     llama_sampler_chain_add(inference->smplr, llama_sampler_init_greedy());
+    return 0;
+}
+
+/*
+    * Runing inference
+    * @param inference: A llama_inference object
+*/
+int run_inference(llama_inference* inference, state_type* state) {
+    
+    struct llama_batch batch = llama_batch_get_one(inference->prompt_tokens, inference->n_prompt);
+    size_t prompt_len = strlen(state->messages);  
+    size_t max_len = 2048;             
+     
+    int n_decode = 0;
+    llama_token new_token_id;
+    state->assistant_response[0] = '\0';
+    for (int n_pos = 0; n_pos + batch.n_tokens < inference->n_prompt + max_len; ) {
+        if (llama_decode(inference->ctx, batch)) {
+            fprintf(stderr, "[Error] Failed to evaluate batch\n");
+            return 1;
+        }
+        n_pos += batch.n_tokens;
+        new_token_id = llama_sampler_sample(inference->smplr, inference->ctx, -1);
+        if (llama_vocab_is_eog(inference->vocab, new_token_id)) {
+            break;
+        }
+        
+        char buf[128];
+        int n = llama_token_to_piece(inference->vocab, new_token_id, buf, sizeof(buf), 0, true);
+        
+        if (n < 0) {
+            fprintf(stderr, "[Error] Failed to convert token to piece\n");
+            return 1;
+        }
+        if (prompt_len + n < max_len - 1) {
+            strncat(state->assistant_response, buf,n);
+            prompt_len += n;
+        } else {
+            fprintf(stderr, "[Warning] assistant_response buffer full, truncating.\n");
+            break;
+        }
+        printf("\033[0;32m%.*s\033[0m", n, buf);
+        fflush(stdout);
+        batch = llama_batch_get_one(&new_token_id, 1);   
+        n_decode++;
+    }
+    printf("\n");
     return 0;
 }
