@@ -130,3 +130,35 @@ int run_inference(llama_inference* inference, state_type* state) {
     printf("\n");
     return 0;
 }
+
+/*
+    * Unallocates llama_inference object
+    * @param inference: A llama_inference object
+*/
+int free_llama_inference(llama_inference* inference){
+    if (inference == NULL) {
+        return 0;
+    }
+
+    if (inference->model != NULL) {
+        llama_model_free(inference->model);
+        inference->model = NULL;
+    }
+
+    if (inference->smplr != NULL) {
+        llama_sampler_free(inference->smplr);
+        inference->smplr = NULL;
+    }
+
+    if (inference->ctx != NULL) {
+        llama_free(inference->ctx);
+        inference->ctx = NULL;
+    }
+
+    if (inference->prompt_tokens != NULL) {
+        free(inference->prompt_tokens);
+        inference->prompt_tokens = NULL;
+    }
+    
+    return 0;
+}
