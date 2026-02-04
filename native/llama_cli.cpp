@@ -1,6 +1,8 @@
 #include <iostream>
 #include <sstream>
+#include <string.h>
 #include "inference.h"
+#include "prompt.h"
 #include "config.h"
 
 struct Args {
@@ -125,7 +127,15 @@ int main(int argc, char ** argv){
         free_llama_inference(&inference);
         return 1;
     }
-    
+
+    while(1){
+        user_prompt = get_user_prompt();
+        if(strcmp(user_prompt, "exit\n") == 0){
+            break;
+        }
+        printf(user_prompt);
+    }
+
     
     return 0;
 }
