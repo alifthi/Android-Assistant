@@ -8,3 +8,7 @@ typedef struct {
 } state_type;
 
 char* extend_messages(char* main_string, const char* addition);
+
+void free_ptr(state_type* state);
+
+int init_default_state(state_type* state);

@@ -63,6 +63,7 @@ SRC_CPP := \
 	native/llama_cli.cpp \
 	native/inferece.cpp \
 	native/prompt.cpp \
+	native/states.cpp \
 	$(wildcard third_party/llama.cpp/src/*.cpp) \
 	$(wildcard third_party/llama.cpp/src/models/*.cpp) \
 	$(wildcard third_party/llama.cpp/ggml/src/*.cpp) \

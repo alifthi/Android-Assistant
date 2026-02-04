@@ -3,6 +3,7 @@
 #include <string.h>
 #include "inference.h"
 #include "prompt.h"
+#include "states.h"
 #include "config.h"
 
 struct Args {
@@ -86,6 +87,7 @@ int main(int argc, char ** argv){
 
     memset(&inference, 0, sizeof(llama_inference));
     memset(&state, 0, sizeof(state_type));
+
     if (!parse_args(argc, argv, args)) {
         print_usage(argv[0]);
         return 1;
@@ -94,18 +96,22 @@ int main(int argc, char ** argv){
         std::cerr << "Empty prompt. Provide -p or stdin.\n";
         return 1;
     }
-
+    
+    init_default_state(&state);
     load_backend();
     
     res = load_model(MODEL_PATH, &inference);
     if(res){
         free(user_prompt);
+        free_ptr(&state);
         free_llama_inference(&inference);
         return 1;
     }
+
     res = get_vocab(&inference);
     if(res){
         free(user_prompt);
+        free_ptr(&state);
         free_llama_inference(&inference);
         return 1;
     }
@@ -113,26 +119,34 @@ int main(int argc, char ** argv){
     res = create_ctx(&inference);
     if(res){
         free(user_prompt);
+        free_ptr(&state);
         free_llama_inference(&inference);
         return 1;
     }
+
     res = set_sampler(&inference);
     if(res){
         free(user_prompt);
+        free_ptr(&state);
         free_llama_inference(&inference);
         return 1;
     }
+
     while(1){
         user_prompt = get_user_prompt();
-        if (user_prompt == NULL) {
+        if (user_prompt == NULL)
             break;
-        }
-        if(strcmp(user_prompt, "exit\n") == 0){
+
+        if(strcmp(user_prompt, "exit\n") == 0)
             break;
-        }
+        state.messages = extend_messages(state.messages, "<|im_start|>user\n");
+        user_prompt = extend_messages(user_prompt, "<|im_end|>\n<|im_start|>assistant");
+        state.messages = extend_messages(state.messages, user_prompt);
+        std::cout<< state.messages;
     }
 
     free(user_prompt);
+    free_ptr(&state);
     free_llama_inference(&inference);
     
     return 0;
