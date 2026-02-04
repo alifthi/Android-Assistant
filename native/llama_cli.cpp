@@ -16,12 +16,9 @@ struct Args {
 
 static void print_usage(const char * prog) {
     std::cerr
-        << "Usage: " << prog << " -m <model.gguf> [-p <prompt>] [--] [prompt words...]\n"
+        << "Usage: " << prog << " -m <model.gguf>\n"
         << "Options:\n"
-        << "  -m, --model       Path to GGUF model (required)\n"
-        << "  -n, --n-predict   Number of tokens to generate (default: 128)\n"
-        << "  -c, --ctx         Context size (default: 2048)\n"
-        << "  -t, --threads     Number of threads (default: 4)\n";
+        << "  -m, --model       Path to GGUF model (required)\n";
 }
 
 static std::string read_stdin_all() {

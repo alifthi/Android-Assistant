@@ -31,7 +31,7 @@ void silent_log_callback(enum ggml_log_level level, const char * text, void * us
     * @param inference: inference object.
     * @return: returns 0 if load was succeed
 */
-int load_model(char *path, llama_inference *inference){
+int load_model(const char *path, llama_inference *inference){
     struct llama_model_params model_params = llama_model_default_params();
     llama_log_set(silent_log_callback, NULL);    
     inference->model = llama_model_load_from_file(path, model_params);
@@ -63,6 +63,9 @@ int get_vocab(llama_inference *inference){
 int create_ctx(llama_inference* inference){
     struct llama_context_params ctx_params = llama_context_default_params();
     ctx_params.no_perf = false;
+    ctx_params.n_ctx = N_CTX; 
+    ctx_params.n_batch = N_BATCH; 
+    ctx_params.n_threads = N_THREADS;
 
     inference->ctx = llama_init_from_model(inference->model, ctx_params);
     if (inference->ctx == NULL){
@@ -110,14 +113,23 @@ int allocate_prompt(llama_inference* inference, state_type* state){
 */
 int run_inference(llama_inference* inference, state_type* state) {
     std::cout.setf(std::ios::unitbuf);
-    
+
+    const uint32_t n_ctx = llama_n_ctx(inference->ctx);
+    if (inference->n_prompt >= static_cast<int>(n_ctx)) {
+        std::cerr << "[Error] Prompt is longer than context window ("
+                  << inference->n_prompt << " >= " << n_ctx
+                  << ").\n";
+        return 1;
+    }
+
     struct llama_batch batch = llama_batch_get_one(inference->prompt_tokens, inference->n_prompt);
-    size_t prompt_len = strlen(state->messages);  
-    size_t max_len = 2048*2;             
-     
+    size_t max_len = static_cast<size_t>(n_ctx - inference->n_prompt);
+    state->assistant_response[0] = '\0';
+    const size_t resp_cap = sizeof(state->assistant_response) - 1;
+    size_t resp_len = 0;
+    bool warned_trunc = false;
     int n_decode = 0;
     llama_token new_token_id;
-    state->assistant_response[0] = '\0';
     for (int n_pos = 0; n_pos + batch.n_tokens < inference->n_prompt + max_len; ) {
         if (llama_decode(inference->ctx, batch)) {
             std::cerr << "[Error] Failed to evaluate batch\n";
@@ -125,7 +137,7 @@ int run_inference(llama_inference* inference, state_type* state) {
         }
         n_pos += batch.n_tokens;
         new_token_id = llama_sampler_sample(inference->smplr, inference->ctx, -1);
-        
+
         if (llama_vocab_is_eog(inference->vocab, new_token_id)) {
             break;
         }
@@ -137,12 +149,12 @@ int run_inference(llama_inference* inference, state_type* state) {
             std::cerr << "[Error] Failed to convert token to piece\n";
             return 1;
         }
-        if (prompt_len + n < max_len - 1) {
-            strncat(state->assistant_response, buf,n);
-            prompt_len += n;
-        } else {
-            std::cerr << "[Warning] assistant_response buffer full, truncating.\n";
-            break;
+        if (resp_len + static_cast<size_t>(n) <= resp_cap) {
+            strncat(state->assistant_response, buf, n);
+            resp_len += static_cast<size_t>(n);
+        } else if (!warned_trunc) {
+            std::cerr << "[Warning] assistant_response buffer full; continuing stream without storing full text.\n";
+            warned_trunc = true;
         }
         std::cout << "\033[0;32m";
         std::cout.write(buf, n);

@@ -5,4 +5,7 @@
 
 
 #define N_GPU_LAYERS 11
+#define N_THREADS 0
+#define N_BATCH 8192
+#define N_CTX 8192  
 #define MODEL_PATH "/data/local/tmp/model.gguf"

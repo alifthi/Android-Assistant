@@ -25,7 +25,7 @@ typedef struct
 void load_backend();
 
 // function to load model
-int load_model(char* path, llama_inference* inference);
+int load_model(const char* path, llama_inference* inference);
 
 // Get vocab
 int get_vocab(llama_inference* inference);
