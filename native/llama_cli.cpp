@@ -142,7 +142,11 @@ int main(int argc, char ** argv){
         state.messages = extend_messages(state.messages, "<|im_start|>user\n");
         user_prompt = extend_messages(user_prompt, "<|im_end|>\n<|im_start|>assistant");
         state.messages = extend_messages(state.messages, user_prompt);
-        std::cout<< state.messages;
+        
+        int res = allocate_prompt(&inference, &state);
+        if(res)
+            return 1;
+        
     }
 
     free(user_prompt);

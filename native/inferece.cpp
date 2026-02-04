@@ -85,6 +85,25 @@ int set_sampler(llama_inference* inference){
 }
 
 /*
+    * allocate prompt_tokens
+    * @param inference: inference object.
+    * @param state: state object.
+    * @return: returns 0 if tokenization was succeed.
+*/
+int allocate_prompt(llama_inference* inference, state_type* state){
+    inference->n_prompt = -llama_tokenize(inference->vocab, state->messages, strlen(state->messages), NULL, 0, true, true);
+    inference->prompt_tokens = static_cast<llama_token*>(
+        malloc(inference->n_prompt * sizeof(llama_token))
+    );
+    if (llama_tokenize(inference->vocab, state->messages, strlen(state->messages),
+                       inference->prompt_tokens, inference->n_prompt, true, true) < 0) {
+        fprintf(stderr, "[Error] Failed to tokenize the prompt\n");
+        return 1;
+    }
+    return 0;
+}
+
+/*
     * Runing inference
     * @param inference: A llama_inference object
 */
