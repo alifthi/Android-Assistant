@@ -103,9 +103,9 @@ int main(int argc, char ** argv){
 
         if(strcmp(user_prompt, "exit\n") == 0)
             break;
-        state.messages = extend_messages(state.messages, "<|im_start|>user\n");
-        user_prompt = extend_messages(user_prompt, "<|im_end|>\n<|im_start|>assistant");
+        state.messages = extend_messages(state.messages, "<|start_header_id|>user<|end_header_id|>\n\n");
         state.messages = extend_messages(state.messages, user_prompt);
+        state.messages = extend_messages(state.messages, "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n");
 
         int res = allocate_prompt(&inference, &state);
         if(res){
@@ -122,6 +122,8 @@ int main(int argc, char ** argv){
             free_llama_inference(&inference);
             return 1;
         }
+        state.messages = extend_messages(state.messages, state.assistant_response);
+        state.messages = extend_messages(state.messages, "<|eot_id|>");
     }
 
     free(user_prompt);
