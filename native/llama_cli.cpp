@@ -82,16 +82,14 @@ int main(int argc, char ** argv){
 
     llama_inference inference;
     state_type state;
-    char *user_prompt;
+    char *user_prompt = NULL;
 
     memset(&inference, 0, sizeof(llama_inference));
     memset(&state, 0, sizeof(state_type));
-
     if (!parse_args(argc, argv, args)) {
         print_usage(argv[0]);
         return 1;
     }
-    
     if (args.prompt.empty()) {
         std::cerr << "Empty prompt. Provide -p or stdin.\n";
         return 1;
@@ -99,14 +97,12 @@ int main(int argc, char ** argv){
 
     load_backend();
     
-    
     res = load_model(MODEL_PATH, &inference);
     if(res){
         free(user_prompt);
         free_llama_inference(&inference);
         return 1;
     }
-
     res = get_vocab(&inference);
     if(res){
         free(user_prompt);
@@ -120,22 +116,24 @@ int main(int argc, char ** argv){
         free_llama_inference(&inference);
         return 1;
     }
-
     res = set_sampler(&inference);
     if(res){
         free(user_prompt);
         free_llama_inference(&inference);
         return 1;
     }
-
     while(1){
         user_prompt = get_user_prompt();
+        if (user_prompt == NULL) {
+            break;
+        }
         if(strcmp(user_prompt, "exit\n") == 0){
             break;
         }
-        printf(user_prompt);
     }
 
+    free(user_prompt);
+    free_llama_inference(&inference);
     
     return 0;
 }
