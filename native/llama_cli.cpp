@@ -19,7 +19,6 @@ static void print_usage(const char * prog) {
         << "Usage: " << prog << " -m <model.gguf> [-p <prompt>] [--] [prompt words...]\n"
         << "Options:\n"
         << "  -m, --model       Path to GGUF model (required)\n"
-        << "  -p, --prompt      Prompt text (optional; otherwise stdin)\n"
         << "  -n, --n-predict   Number of tokens to generate (default: 128)\n"
         << "  -c, --ctx         Context size (default: 2048)\n"
         << "  -t, --threads     Number of threads (default: 4)\n";
@@ -39,37 +38,6 @@ static bool parse_args(int argc, char ** argv, Args & out) {
         if (a == "-m" || a == "--model") {
             if (i + 1 >= argc) return false;
             out.model_path = argv[++i];
-        } else if (a == "-p" || a == "--prompt") {
-            if (i + 1 >= argc) return false;
-            out.prompt = argv[++i];
-        } else if (a == "-n" || a == "--n-predict") {
-            if (i + 1 >= argc) return false;
-            out.n_predict = std::atoi(argv[++i]);
-        } else if (a == "-c" || a == "--ctx") {
-            if (i + 1 >= argc) return false;
-            out.n_ctx = std::atoi(argv[++i]);
-        } else if (a == "-t" || a == "--threads") {
-            if (i + 1 >= argc) return false;
-            out.n_threads = std::atoi(argv[++i]);
-        } else if (a == "--") {
-            force_prompt_from_args = true;
-            for (int j = i + 1; j < argc; ++j) {
-                if (!out.prompt.empty()) out.prompt += " ";
-                out.prompt += argv[j];
-            }
-            break;
-        } else if (!a.empty() && a[0] == '-') {
-            return false;
-        } else {
-            if (!out.prompt.empty()) out.prompt += " ";
-            out.prompt += a;
-        }
-    }
-
-    if (out.prompt.empty() && !force_prompt_from_args) {
-        out.prompt = read_stdin_all();
-        if (!out.prompt.empty() && out.prompt.back() == '\n') {
-            out.prompt.pop_back();
         }
     }
 
@@ -90,10 +58,6 @@ int main(int argc, char ** argv){
 
     if (!parse_args(argc, argv, args)) {
         print_usage(argv[0]);
-        return 1;
-    }
-    if (args.prompt.empty()) {
-        std::cerr << "Empty prompt. Provide -p or stdin.\n";
         return 1;
     }
     
@@ -142,11 +106,22 @@ int main(int argc, char ** argv){
         state.messages = extend_messages(state.messages, "<|im_start|>user\n");
         user_prompt = extend_messages(user_prompt, "<|im_end|>\n<|im_start|>assistant");
         state.messages = extend_messages(state.messages, user_prompt);
-        
+
         int res = allocate_prompt(&inference, &state);
-        if(res)
+        if(res){
+            free(user_prompt);
+            free_ptr(&state);
+            free_llama_inference(&inference);
             return 1;
-        
+        }
+
+        res = run_inference(&inference, &state);
+        if(res){
+            free(user_prompt);
+            free_ptr(&state);
+            free_llama_inference(&inference);
+            return 1;
+        }
     }
 
     free(user_prompt);
