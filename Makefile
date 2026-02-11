@@ -85,7 +85,7 @@ OBJ := $(OBJ_CPP) $(OBJ_C)
 
 DEFS := -DANDROID -DGGML_USE_CPU -DGGML_SCHED_MAX_COPIES=4 -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -DGGML_VERSION=\"0.9.5\" -DGGML_COMMIT=\"unknown\"
 INCLUDES := -Iinclude -Ithird_party/llama.cpp/include -Ithird_party/llama.cpp/ggml/include -Ithird_party/llama.cpp/ggml/src -Ithird_party/llama.cpp/ggml/src/ggml-cpu
-CPPFLAGS := $(DEFS) $(INCLUDES)
+CPPFLAGS := $(DEFS) $(INCLUDES) -include include/llama_compat.h
 CFLAGS := -O2 -g -fPIE -fPIC -std=c11 $(CPPFLAGS)
 CXXFLAGS := -O2 -g -fPIE -fPIC -std=c++17 $(CPPFLAGS)
 LDFLAGS := -pie -ldl -lm
