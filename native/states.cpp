@@ -14,6 +14,7 @@ int init_default_state(state_type* state){
 
     state->messages = extend_messages(state->messages, SYSTEM_PROMPT); 
     state->assistant_response[0] = '\0';
+    state->kv_applied_chars = 0;
     
     return 0;
 }

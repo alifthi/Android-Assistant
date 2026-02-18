@@ -4,6 +4,7 @@
 #include <string.h>
 #include <config.h>
 #include <iostream>
+#include <limits.h>
 
 /*
     * loading ggml backend
@@ -95,12 +96,66 @@ int set_sampler(llama_inference* inference){
     * @return: returns 0 if tokenization was succeed.
 */
 int allocate_prompt(llama_inference* inference, state_type* state){
-    inference->n_prompt = -llama_tokenize(inference->vocab, state->messages, strlen(state->messages), NULL, 0, true, true);
+    if (state->messages == NULL) {
+        fprintf(stderr, "[Error] Missing conversation state\n");
+        return 1;
+    }
+
+    const size_t message_len = strlen(state->messages);
+    if (state->kv_applied_chars > message_len) {
+        fprintf(stderr, "[Error] Invalid KV cache cursor\n");
+        return 1;
+    }
+
+    const char * delta_prompt = state->messages + state->kv_applied_chars;
+    printf("%s", delta_prompt);
+    const size_t delta_len = message_len - state->kv_applied_chars;
+    if (delta_len > static_cast<size_t>(INT32_MAX)) {
+        fprintf(stderr, "[Error] Prompt segment is too large to tokenize\n");
+        return 1;
+    }
+
+    const bool add_special = state->kv_applied_chars == 0;
+    inference->n_prompt = -llama_tokenize(
+        inference->vocab,
+        delta_prompt,
+        static_cast<int32_t>(delta_len),
+        NULL,
+        0,
+        add_special,
+        true
+    );
+    if (inference->n_prompt < 0) {
+        fprintf(stderr, "[Error] Failed to size prompt tokenization buffer\n");
+        return 1;
+    }
+
+    if (inference->prompt_tokens != NULL) {
+        free(inference->prompt_tokens);
+        inference->prompt_tokens = NULL;
+    }
+
+    if (inference->n_prompt == 0) {
+        return 0;
+    }
+
     inference->prompt_tokens = static_cast<llama_token*>(
         malloc(inference->n_prompt * sizeof(llama_token))
     );
-    if (llama_tokenize(inference->vocab, state->messages, strlen(state->messages),
-                       inference->prompt_tokens, inference->n_prompt, true, true) < 0) {
+    if (inference->prompt_tokens == NULL) {
+        fprintf(stderr, "[Error] Failed to allocate prompt token buffer\n");
+        return 1;
+    }
+
+    if (llama_tokenize(
+            inference->vocab,
+            delta_prompt,
+            static_cast<int32_t>(delta_len),
+            inference->prompt_tokens,
+            inference->n_prompt,
+            add_special,
+            true
+        ) < 0) {
         fprintf(stderr, "[Error] Failed to tokenize the prompt\n");
         return 1;
     }
@@ -115,36 +170,48 @@ int run_inference(llama_inference* inference, state_type* state) {
     std::cout.setf(std::ios::unitbuf);
 
     const uint32_t n_ctx = llama_n_ctx(inference->ctx);
-    if (inference->n_prompt >= static_cast<int>(n_ctx)) {
-        std::cerr << "[Error] Prompt is longer than context window ("
-                  << inference->n_prompt << " >= " << n_ctx
-                  << ").\n";
+    llama_memory_t memory = llama_get_memory(inference->ctx);
+    const llama_pos pos_max = llama_memory_seq_pos_max(memory, 0);
+    const int n_cached = pos_max < 0 ? 0 : static_cast<int>(pos_max + 1);
+
+    if (inference->n_prompt <= 0) {
+        std::cerr << "[Error] No new prompt tokens to evaluate.\n";
         return 1;
     }
 
-    struct llama_batch batch = llama_batch_get_one(inference->prompt_tokens, inference->n_prompt);
-    size_t max_len = static_cast<size_t>(n_ctx - inference->n_prompt);
+    if (n_cached + inference->n_prompt >= static_cast<int>(n_ctx)) {
+        std::cerr << "[Error] Context window exhausted (cached=" << n_cached
+                  << ", new_prompt=" << inference->n_prompt
+                  << ", n_ctx=" << n_ctx << ").\n";
+        return 1;
+    }
+
+    struct llama_batch prompt_batch = llama_batch_get_one(inference->prompt_tokens, inference->n_prompt);
+    if (llama_decode(inference->ctx, prompt_batch)) {
+        std::cerr << "[Error] Failed to evaluate prompt batch\n";
+        return 1;
+    }
+
+    size_t max_len = static_cast<size_t>(n_ctx - n_cached - inference->n_prompt);
+    if (max_len == 0) {
+        std::cerr << "[Error] No room left to generate response tokens.\n";
+        return 1;
+    }
+
     state->assistant_response[0] = '\0';
     const size_t resp_cap = sizeof(state->assistant_response) - 1;
     size_t resp_len = 0;
     bool warned_trunc = false;
-    int n_decode = 0;
-    llama_token new_token_id;
-    for (int n_pos = 0; n_pos + batch.n_tokens < inference->n_prompt + max_len; ) {
-        if (llama_decode(inference->ctx, batch)) {
-            std::cerr << "[Error] Failed to evaluate batch\n";
-            return 1;
-        }
-        n_pos += batch.n_tokens;
-        new_token_id = llama_sampler_sample(inference->smplr, inference->ctx, -1);
+
+    for (size_t n_decode = 0; n_decode < max_len; ++n_decode) {
+        llama_token new_token_id = llama_sampler_sample(inference->smplr, inference->ctx, -1);
 
         if (llama_vocab_is_eog(inference->vocab, new_token_id)) {
             break;
         }
-        
+
         char buf[128];
         int n = llama_token_to_piece(inference->vocab, new_token_id, buf, sizeof(buf), 0, true);
-        
         if (n < 0) {
             std::cerr << "[Error] Failed to convert token to piece\n";
             return 1;
@@ -159,8 +226,12 @@ int run_inference(llama_inference* inference, state_type* state) {
         std::cout << "\033[0;32m";
         std::cout.write(buf, n);
         std::cout << "\033[0m" << std::flush;
-        batch = llama_batch_get_one(&new_token_id, 1);   
-        n_decode++;
+
+        struct llama_batch token_batch = llama_batch_get_one(&new_token_id, 1);
+        if (llama_decode(inference->ctx, token_batch)) {
+            std::cerr << "[Error] Failed to evaluate generation batch\n";
+            return 1;
+        }
     }
     std::cout << '\n' << std::flush;
     return 0;

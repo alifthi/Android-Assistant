@@ -92,14 +92,18 @@ int main(int argc, char ** argv){
         free_llama_inference(&inference);
         return 1;
     }
+    
 
     while(1){
         user_prompt = get_user_prompt();
         if (user_prompt == NULL)
             break;
 
-        if(strcmp(user_prompt, "exit\n") == 0)
+        if(strcmp(user_prompt, "exit\n") == 0) {
+            free(user_prompt);
+            user_prompt = NULL;
             break;
+        }
         state.messages = extend_messages(state.messages, "<|im_start|>user\n");
         state.messages = extend_messages(state.messages, user_prompt);
         state.messages = extend_messages(state.messages, "<|im_end|><|im_start|>assistant\n\n");
@@ -120,7 +124,11 @@ int main(int argc, char ** argv){
             return 1;
         }
         state.messages = extend_messages(state.messages, state.assistant_response);
+        state.kv_applied_chars = strlen(state.messages);
         state.messages = extend_messages(state.messages, "<|im_end|>");
+
+        free(user_prompt);
+        user_prompt = NULL;
     }
 
     free(user_prompt);
